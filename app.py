@@ -373,10 +373,11 @@ def main():
                     st.session_state.target_company = target_company
                     
                     # Show progress
-                    with st.spinner("🔍 Finding comparable companies... This may take a few minutes."):
+                    with st.spinner("🔍 Finding comparable companies... Using optimized single API call (faster!)"):
                         try:
-                            # Find comparables
-                            results_df = find_comparables(target_company, output_file=None)
+                            # Find comparables using optimized method (1-2 API calls total)
+                            # Default to gpt-4o, but can be changed to gpt-4.1 or other models
+                            results_df = find_comparables(target_company, output_file=None, model="gpt-4o")
                             st.session_state.results_df = results_df
                             
                             # Save to cache

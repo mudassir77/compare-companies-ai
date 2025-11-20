@@ -28,20 +28,23 @@ client = OpenAI(api_key=api_key)
 class ComparableFinder:
     """Main class for finding comparable companies."""
     
-    def __init__(self):
+    def __init__(self, model: str = "gpt-4o"):
         self.client = client
         self.max_comparables = 10
         self.min_comparables = 3
+        self.model = model  # Use newer model (gpt-4o, gpt-4-turbo, or gpt-4.1 if available)
         
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    def _call_openai(self, messages: List[Dict], model: str = "gpt-4", temperature: float = 0.3) -> str:
+    def _call_openai(self, messages: List[Dict], model: str = None, temperature: float = 0.3) -> str:
         """Make OpenAI API call with retry logic."""
+        if model is None:
+            model = self.model
         try:
             response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
-                response_format={"type": "json_object"} if "json" in model.lower() else None
+                response_format={"type": "json_object"}
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -99,7 +102,7 @@ Return ONLY valid JSON, no additional text."""
         ]
         
         try:
-            response = self._call_openai(messages, model="gpt-4")
+            response = self._call_openai(messages, model=self.model)
             # Clean response to extract JSON - handle various formats
             response = response.strip()
             # Remove markdown code blocks
@@ -430,9 +433,209 @@ Return ONLY valid JSON."""
             # Default to valid if validation fails (to avoid false negatives)
             return True, "Validation check unavailable"
     
+    def find_comparables_comprehensive(self, target_company: Dict) -> List[Dict]:
+        """
+        Find, enrich, and validate all comparable companies in ONE API call.
+        This is much more efficient than making separate calls for each step.
+        
+        Args:
+            target_company: Target company information
+            
+        Returns:
+            List of validated, enriched comparable company dictionaries
+        """
+        print(f"Finding, enriching, and validating comparables for {target_company['name']} in one comprehensive call...")
+        
+        prompt = f"""You are an investment analyst identifying comparable publicly traded companies.
+
+Target Company Information:
+- Name: {target_company['name']}
+- Business Description: {target_company['business_description']}
+- Primary Industry: {target_company['primary_industry_classification']}
+- Website: {target_company['url']}
+
+Your task is to:
+1. Identify 8-12 publicly traded companies that are comparable to the target
+2. For each company, provide complete detailed information
+3. Validate that each company is truly comparable (products/services AND customer segments must be similar)
+4. Only include companies that pass validation (similarity scores >= 6/10 for both products and customers)
+
+A company is comparable if:
+1. It offers similar products and services to the target
+2. It serves clients in similar industry segments
+
+For each company, provide ALL of the following information:
+- name: Full company name
+- ticker: Stock ticker symbol (just the symbol, e.g., "AAPL" not "NASDAQ:AAPL")
+- exchange: Stock exchange name (e.g., NASDAQ, NYSE, NYSEARCA)
+- url: Official company website URL
+- business_activity: Detailed description of main products/services (2-3 sentences)
+- customer_segment: Major customer segments/industries served (1-2 sentences)
+- SIC_industry: SIC industry classification name(s), comma-separated if multiple
+- products_similarity_score: 0-10 score for how similar products/services are
+- customer_similarity_score: 0-10 score for how similar customer segments are
+- is_comparable: true if both similarity scores >= 6, false otherwise
+- reasoning: Brief explanation of why this company is comparable (1-2 sentences)
+
+Return your response as a JSON object with this structure:
+{{
+    "companies": [
+        {{
+            "name": "Company Name",
+            "ticker": "SYMBOL",
+            "exchange": "Exchange Name",
+            "url": "https://company.com",
+            "business_activity": "Detailed description...",
+            "customer_segment": "Customer segments...",
+            "SIC_industry": "Industry Classification",
+            "products_similarity_score": 8,
+            "customer_similarity_score": 7,
+            "is_comparable": true,
+            "reasoning": "Why this is comparable..."
+        }}
+    ]
+}}
+
+IMPORTANT:
+- Only include companies where is_comparable is true
+- Ensure products_similarity_score >= 6 AND customer_similarity_score >= 6
+- Provide accurate ticker symbols and exchange names
+- Provide real, working website URLs
+- Return 3-10 validated comparable companies
+- Return ONLY valid JSON, no additional text."""
+
+        messages = [
+            {"role": "system", "content": "You are a financial analyst expert at identifying and analyzing comparable companies. Always return valid JSON with complete, accurate information."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        try:
+            response = self._call_openai(messages, model=self.model)
+            
+            # Clean response to extract JSON
+            response = response.strip()
+            response = re.sub(r'^```json\s*', '', response, flags=re.MULTILINE)
+            response = re.sub(r'^```\s*', '', response, flags=re.MULTILINE)
+            response = re.sub(r'```\s*$', '', response, flags=re.MULTILINE)
+            response = response.strip()
+            
+            # Try to extract JSON object if wrapped in other text
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                response = json_match.group(0)
+            
+            data = json.loads(response)
+            companies = data.get("companies", [])
+            
+            # Filter to only include validated companies
+            validated_companies = []
+            for company in companies:
+                # Ensure scores are integers
+                products_score = int(company.get("products_similarity_score", 0))
+                customer_score = int(company.get("customer_similarity_score", 0))
+                is_comparable = company.get("is_comparable", False)
+                
+                # Double-check validation
+                if is_comparable and products_score >= 6 and customer_score >= 6:
+                    # Clean up the response - remove validation fields from final output
+                    final_company = {
+                        "name": company.get("name", ""),
+                        "ticker": company.get("ticker", ""),
+                        "exchange": company.get("exchange", "Unknown"),
+                        "url": company.get("url", ""),
+                        "business_activity": company.get("business_activity", "Not available"),
+                        "customer_segment": company.get("customer_segment", "Not available"),
+                        "SIC_industry": company.get("SIC_industry", "Not available")
+                    }
+                    validated_companies.append(final_company)
+                    print(f"    ✓ {final_company['name']} validated (products: {products_score}/10, customers: {customer_score}/10)")
+                else:
+                    print(f"    ✗ {company.get('name', 'Unknown')} rejected (products: {products_score}/10, customers: {customer_score}/10)")
+            
+            if len(validated_companies) < self.min_comparables:
+                print(f"Warning: Only {len(validated_companies)} companies passed validation.")
+                # If we have some but not enough, try one more call to get additional companies
+                if len(validated_companies) > 0:
+                    print("Attempting to find additional comparables...")
+                    additional = self._find_additional_comparables(target_company, validated_companies)
+                    validated_companies.extend(additional)
+            
+            return validated_companies[:self.max_comparables]
+            
+        except json.JSONDecodeError as e:
+            print(f"Error parsing LLM response as JSON: {e}")
+            print(f"Response was: {response[:500]}")
+            raise ValueError(f"Failed to parse AI response: {e}")
+        except Exception as e:
+            print(f"Error finding comparables: {e}")
+            raise
+    
+    def _find_additional_comparables(self, target_company: Dict, existing_companies: List[Dict]) -> List[Dict]:
+        """Find additional comparables if initial call didn't return enough."""
+        existing_names = [c["name"].lower() for c in existing_companies]
+        
+        prompt = f"""The previous search found {len(existing_companies)} comparable companies, but we need at least {self.min_comparables}.
+
+Existing companies found: {', '.join([c['name'] for c in existing_companies[:3]])}...
+
+Target: {target_company['name']}
+Business: {target_company['business_description']}
+Industry: {target_company['primary_industry_classification']}
+
+Please find ADDITIONAL publicly traded companies (different from the ones above) that are comparable.
+Consider companies in adjacent markets or with similar business models.
+
+Return JSON with the same structure as before, with complete information for each company.
+Only include companies where is_comparable is true and similarity scores >= 6."""
+
+        try:
+            response = self._call_openai([
+                {"role": "system", "content": "You are a financial analyst. Return valid JSON only."},
+                {"role": "user", "content": prompt}
+            ])
+            
+            # Clean response
+            response = response.strip()
+            response = re.sub(r'^```json\s*', '', response, flags=re.MULTILINE)
+            response = re.sub(r'^```\s*', '', response, flags=re.MULTILINE)
+            response = re.sub(r'```\s*$', '', response, flags=re.MULTILINE)
+            response = response.strip()
+            
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                response = json_match.group(0)
+            
+            data = json.loads(response)
+            additional = data.get("companies", [])
+            
+            # Filter and format additional companies
+            new_companies = []
+            for company in additional:
+                if company.get("name", "").lower() not in existing_names:
+                    products_score = int(company.get("products_similarity_score", 0))
+                    customer_score = int(company.get("customer_similarity_score", 0))
+                    is_comparable = company.get("is_comparable", False)
+                    
+                    if is_comparable and products_score >= 6 and customer_score >= 6:
+                        new_companies.append({
+                            "name": company.get("name", ""),
+                            "ticker": company.get("ticker", ""),
+                            "exchange": company.get("exchange", "Unknown"),
+                            "url": company.get("url", ""),
+                            "business_activity": company.get("business_activity", "Not available"),
+                            "customer_segment": company.get("customer_segment", "Not available"),
+                            "SIC_industry": company.get("SIC_industry", "Not available")
+                        })
+            
+            return new_companies
+        except Exception as e:
+            print(f"Error finding additional comparables: {e}")
+            return []
+    
     def find_comparables(self, target_company: Dict, output_file: Optional[str] = None) -> pd.DataFrame:
         """
         Main method to find and return comparable companies.
+        Now uses a single comprehensive API call instead of multiple calls.
         
         Args:
             target_company: Target company information
@@ -441,49 +644,16 @@ Return ONLY valid JSON."""
         Returns:
             DataFrame with comparable companies
         """
-        # Step 1: Find initial list of comparables
-        companies = self.find_comparable_companies(target_company)
+        # Use the new comprehensive method (1-2 API calls total)
+        validated_companies = self.find_comparables_comprehensive(target_company)
         
-        if len(companies) < self.min_comparables:
+        if len(validated_companies) < self.min_comparables:
             raise ValueError(f"Could not find at least {self.min_comparables} comparable companies")
         
-        # Step 2: Enrich company data
-        enriched_companies = []
-        for company in companies:
-            try:
-                enriched = self.enrich_company_data(company, target_company)
-                enriched_companies.append(enriched)
-                # Rate limiting
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"  Error enriching {company.get('name', 'Unknown')}: {e}")
-                continue
-        
-        # Step 3: Validate comparables
-        validated_companies = []
-        for company in enriched_companies:
-            try:
-                is_valid, reason = self.validate_comparable(company, target_company)
-                if is_valid:
-                    validated_companies.append(company)
-                    print(f"    ✓ {company['name']} validated: {reason}")
-                else:
-                    print(f"    ✗ {company['name']} rejected: {reason}")
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"    Warning: Validation error for {company['name']}: {e}")
-                # Include anyway if validation fails
-                validated_companies.append(company)
-        
-        # Ensure we have at least minimum number
-        if len(validated_companies) < self.min_comparables:
-            print(f"Warning: Only {len(validated_companies)} companies passed validation. Including all enriched companies.")
-            validated_companies = enriched_companies[:self.max_comparables]
-        
-        # Step 4: Create DataFrame
+        # Create DataFrame
         df = pd.DataFrame(validated_companies[:self.max_comparables])
         
-        # Step 5: Export if requested
+        # Export if requested
         if output_file:
             if output_file.endswith('.parquet'):
                 df.to_parquet(output_file, index=False)
@@ -494,18 +664,19 @@ Return ONLY valid JSON."""
         return df
 
 
-def find_comparables(target_company: Dict, output_file: Optional[str] = None) -> pd.DataFrame:
+def find_comparables(target_company: Dict, output_file: Optional[str] = None, model: str = "gpt-4o") -> pd.DataFrame:
     """
     Convenience function to find comparable companies.
     
     Args:
         target_company: Dict with name, url, business_description, primary_industry_classification
         output_file: Optional output file path
+        model: OpenAI model to use (default: "gpt-4o", can use "gpt-4-turbo", "gpt-4.1", etc.)
         
     Returns:
         DataFrame with comparable companies
     """
-    finder = ComparableFinder()
+    finder = ComparableFinder(model=model)
     return finder.find_comparables(target_company, output_file)
 
 
@@ -521,10 +692,12 @@ if __name__ == "__main__":
     print("=" * 80)
     print("Comparable Company Finder")
     print("=" * 80)
+    print("Using optimized single API call approach")
     print()
     
     try:
-        df = find_comparables(target, output_file="huron_comparables.csv")
+        # Use gpt-4o by default (or gpt-4.1 if available)
+        df = find_comparables(target, output_file="huron_comparables.csv", model="gpt-4o")
         print(f"\nFound {len(df)} comparable companies:")
         print(df.to_string(index=False))
     except Exception as e:
