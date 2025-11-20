@@ -16,4 +16,5 @@ env/
 *.parquet
 .DS_Store
 *.log
+results_cache/
 

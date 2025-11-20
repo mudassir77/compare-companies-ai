@@ -33,9 +33,12 @@ streamlit run app.py
 
 The UI provides:
 - Form validation for all input fields
+- **Automatic caching** - Results are saved locally for instant access
+- **History viewer** - View and reload previous searches
 - Real-time results display
 - Download options (CSV and Excel)
 - Detailed company information view
+- **Smart caching** - Checks cache before processing to save time and API costs
 
 ### Python API
 
@@ -66,16 +69,20 @@ The program generates a CSV or Parquet file containing:
 - exchange: Stock exchange name
 - ticker: Ticker symbol
 - business_activity: Detailed description of products/services
+
 - customer_segment: Major customer segments
 - SIC_industry: SIC industry classification(s)
 
 ## Features
 
 - Uses OpenAI API for intelligent company matching
+- **Local caching** - Results are automatically saved and can be viewed/loaded instantly
+- **History viewer** - Browse and reload previous searches
 - Validates comparables for product/service and customer segment similarity
 - Handles LLM errors, rate limits, and missing data gracefully
-- Supports both CSV and Parquet output formats
+- Supports both CSV and Excel output formats
 - Works for any target company (no hard-coding)
+- **Fast retrieval** - Cached results load instantly without API calls
 
 ## Testing
 
