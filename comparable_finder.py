@@ -28,7 +28,7 @@ client = OpenAI(api_key=api_key)
 class ComparableFinder:
     """Main class for finding comparable companies."""
     
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = "gpt-5"):
         self.client = client
         self.max_comparables = 10
         self.min_comparables = 3
@@ -336,7 +336,7 @@ Return only the URL, nothing else."""
             response = self._call_openai([
                 {"role": "system", "content": "You are a helpful assistant. Return only URLs."},
                 {"role": "user", "content": prompt}
-            ], model="gpt-3.5-turbo", temperature=0.1)
+            ], model="gpt-5", temperature=0.1)
             url = response.strip().strip('"').strip("'")
             if url.startswith("http"):
                 return url
@@ -664,14 +664,14 @@ Only include companies where is_comparable is true and similarity scores >= 6.""
         return df
 
 
-def find_comparables(target_company: Dict, output_file: Optional[str] = None, model: str = "gpt-4o") -> pd.DataFrame:
+def find_comparables(target_company: Dict, output_file: Optional[str] = None, model: str = "gpt-5") -> pd.DataFrame:
     """
     Convenience function to find comparable companies.
     
     Args:
         target_company: Dict with name, url, business_description, primary_industry_classification
         output_file: Optional output file path
-        model: OpenAI model to use (default: "gpt-4o", can use "gpt-4-turbo", "gpt-4.1", etc.)
+        model: OpenAI model to use (default: "gpt-5", can use "gpt-5.1", etc.)
         
     Returns:
         DataFrame with comparable companies
@@ -697,7 +697,7 @@ if __name__ == "__main__":
     
     try:
         # Use gpt-4o by default (or gpt-4.1 if available)
-        df = find_comparables(target, output_file="huron_comparables.csv", model="gpt-4o")
+        df = find_comparables(target, output_file="huron_comparables.csv", model="gpt-5")
         print(f"\nFound {len(df)} comparable companies:")
         print(df.to_string(index=False))
     except Exception as e:
