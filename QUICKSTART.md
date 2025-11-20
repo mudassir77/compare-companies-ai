@@ -61,11 +61,13 @@ python test_examples.py healthcare
 ## Expected Output
 
 The script will:
-1. Find 8-12 potential comparable companies
-2. Enrich each with detailed information
-3. Validate each for true comparability
+1. Find, enrich, and validate 3-10 comparable companies in a single optimized API call
+2. All company details (URL, business activity, customer segments, SIC industry) are gathered in one comprehensive request
+3. Validation (similarity scoring) happens automatically during the same call
 4. Return 3-10 validated companies
 5. Save to CSV/Parquet file
+
+**Note**: The optimized version uses GPT-5.1 and makes only 1-2 API calls total (much faster and cheaper than previous versions that made 20+ calls).
 
 Example output file (`huron_comparables.csv`):
 ```csv
@@ -89,6 +91,7 @@ Deloitte Consulting,https://www2.deloitte.com,Private,N/A,"Management consulting
 
 ### API Rate Limits
 - The script includes automatic retries with backoff
+- With the optimized approach (1-2 calls), rate limits are much less likely
 - If you hit rate limits, wait a few minutes and try again
 - Consider using a higher-tier OpenAI plan for production use
 

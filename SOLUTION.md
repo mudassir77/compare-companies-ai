@@ -2,18 +2,22 @@
 
 ## Architecture
 
-The solution uses a multi-step approach to find and validate comparable companies:
+The solution uses an **optimized single-call approach** to find and validate comparable companies:
 
-1. **Initial Company Discovery**: Uses OpenAI GPT-4 to identify 8-12 potential comparable companies based on business description and industry
-2. **Data Enrichment**: For each company, uses LLM to gather detailed information (URL, business activity, customer segments, SIC industry)
-3. **Validation**: Validates each company using similarity scoring for products/services and customer segments
-4. **Export**: Outputs results to CSV or Parquet format
+1. **Comprehensive Company Discovery**: Uses OpenAI GPT-5.1 in a single API call to:
+   - Identify 8-12 potential comparable companies
+   - Enrich each with complete details (URL, business activity, customer segments, SIC industry)
+   - Validate each company using similarity scoring (products/services and customer segments)
+   - Return only validated companies (similarity scores ≥ 6/10)
+2. **Optional Follow-up**: If needed, makes one additional call to find more companies
+3. **Export**: Outputs results to CSV or Parquet format
+
 
 ## Key Features
 
 ### 1. LLM Integration
-- Uses OpenAI GPT-4 for intelligent company matching
-- Uses GPT-3.5-turbo for simpler tasks (URL lookup) to optimize costs
+- Uses OpenAI GPT-5.1 for comprehensive company matching, enrichment, and validation
+- Single comprehensive API call handles all steps (find, enrich, validate) simultaneously
 - Implements retry logic with exponential backoff for API reliability
 
 ### 2. Validation Logic
@@ -108,20 +112,28 @@ The solution includes:
 
 ## Design Decisions
 
-1. **GPT-4 for Matching**: Uses GPT-4 for initial matching and validation (higher quality)
-2. **GPT-3.5 for Simple Tasks**: Uses GPT-3.5-turbo for URL lookup (cost optimization)
-3. **Temperature Settings**: Low temperature (0.3) for consistency in matching, very low (0.1) for factual lookups
-4. **Rate Limiting**: Built-in delays between API calls to avoid rate limits
-5. **Validation Thresholds**: 6/10 minimum similarity scores (configurable)
+1. **GPT-5.1 for Comprehensive Processing**: Uses GPT-5.1 for all operations in a single comprehensive call (finds, enriches, validates simultaneously)
+2. **Single-Call Optimization**: Combines all steps into one API call to reduce cost and latency (1-2 calls vs 20+)
+3. **Temperature Settings**: Low temperature (0.3) for consistency in matching and validation
+4. **Rate Limiting**: With only 1-2 calls, rate limits are much less of a concern
+5. **Validation Thresholds**: 6/10 minimum similarity scores (configurable) - validated during the same API call
 6. **Graceful Degradation**: Continues processing even if some companies fail, ensures minimum output
+7. **Model Flexibility**: Supports GPT-5, GPT-5.1, or other OpenAI models via configuration
+
+## Performance Improvements
+
+**Optimization Completed**:
+- ✅ Reduced API calls from 20+ to 1-2 total
+- ✅ Single comprehensive call handles find, enrich, and validate
+- ✅ Upgraded to GPT-5.1 for better quality and efficiency
+- ✅ Dramatically reduced execution time and cost
 
 ## Future Enhancements
 
 Potential improvements (not implemented due to scope):
 - Integration with financial data APIs (Yahoo Finance, Alpha Vantage) for automatic ticker/exchange lookup
 - Web scraping for company websites to enrich data
-- Caching of company data to reduce API calls
-- Parallel processing for faster execution
+- Parallel processing for multiple target companies
 - More sophisticated validation using multiple criteria
 - Integration with SEC EDGAR API for 10-K data
 

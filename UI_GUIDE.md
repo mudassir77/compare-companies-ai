@@ -102,10 +102,19 @@ The UI gracefully handles:
 - **Network issues**: Provides retry guidance
 - **Empty results**: Shows appropriate messages
 
+## Performance & Optimization
+
+The app uses an optimized approach:
+- **GPT-5.1 Model**: Uses the latest GPT-5.1 for better quality and efficiency
+- **Single Comprehensive Call**: Finds, enriches, and validates all companies in 1-2 API calls (instead of 20+)
+- **Faster Results**: Typical processing time is much shorter due to optimization
+- **Lower Costs**: Dramatically reduced API usage saves on OpenAI costs
+
 ## Tips for Best Results
 
 1. **Provide detailed business descriptions**: The more context you give, the better the AI can find true comparables
 2. **Use accurate industry classifications**: This helps narrow down the search
 3. **Include full company name**: Legal names work best for matching
 4. **Verify website URL**: Ensure it's the official company website
+5. **Be patient**: Even with optimization, processing takes 30-60 seconds (much faster than before!)
 

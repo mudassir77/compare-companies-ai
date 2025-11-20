@@ -75,7 +75,8 @@ The program generates a CSV or Parquet file containing:
 
 ## Features
 
-- Uses OpenAI API for intelligent company matching
+- Uses OpenAI GPT-5.1 for intelligent company matching
+- **Optimized API usage** - Only 1-2 API calls total (finds, enriches, and validates all in one comprehensive call)
 - **Local caching** - Results are automatically saved and can be viewed/loaded instantly
 - **History viewer** - Browse and reload previous searches
 - Validates comparables for product/service and customer segment similarity
@@ -83,6 +84,7 @@ The program generates a CSV or Parquet file containing:
 - Supports both CSV and Excel output formats
 - Works for any target company (no hard-coding)
 - **Fast retrieval** - Cached results load instantly without API calls
+- **Cost efficient** - Dramatically reduced API calls compared to previous versions
 
 ## Testing
 
